@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<!--[if lt IE 7 ]><html class="ie ie6" lang="en"> <![endif]-->
+<!--[if IE 7 ]><html class="ie ie7" lang="en"> <![endif]-->
+<!--[if IE 8 ]><html class="ie ie8" lang="en"> <![endif]-->
+<!--[if (gte IE 9)|!(IE)]><!--><html lang="en"> <!--<![endif]-->
+<head>
+
+    <!-- Basic Page Needs
+  ================================================== -->
+	<meta charset="utf-8">
+	<title>Mathematics of Sudoku</title>
+	<meta name="description" content="">
+	
+	
+    <!-- Mobile Specific Metas
+  ================================================== -->
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    
+    <!-- CSS
+  ================================================== -->
+  	<link rel="stylesheet" href="css/zerogrid.css">
+	<link rel="stylesheet" href="css/style.css">
+	
+	<script src="js/jquery-latest.min.js"></script>
+	<script src="js/script.js"></script>
+	
+	
+	<!--[if lt IE 8]>
+       <div style=' clear: both; text-align:center; position: relative;'>
+         <a href="http://windows.microsoft.com/en-US/internet-explorer/products/ie/home?ocid=ie6_countdown_bannercode">
+           <img src="http://storage.ie6countdown.com/assets/100/images/banners/warning_bar_0000_us.jpg" border="0" height="42" width="820" alt="You are using an outdated browser. For a faster, safer browsing experience, upgrade for free today." />
+        </a>
+      </div>
+    <![endif]-->
+    <!--[if lt IE 9]>
+		<script src="js/html5.js"></script>
+		<script src="js/css3-mediaqueries.js"></script>
+	<![endif]-->
+    
+</head>
+<body>
+<div class="wrap-body">
+
+<!--////////////////////////////////////Header-->
+<header>
+    <div class="wrap-header zerogrid">
+        <div class="row">
+            <div id="cssmenu">
+                <ul>
+                   <li class='active'><a href="index.php">Home</a></li>
+                   <li><a href="#">Game</a>
+                      <ul>
+                         <li><a href='sudoku_init.php'>数独游戏</a>
+                         </li>
+                         <li><a href='sudoku_web.php'>解数独</a>
+                         </li>
+                      </ul>
+                   </li>
+
+                </ul>
+            </div>
+        </div>
+    </div>
+</header>
+
+<!--////////////////////////////////////Container-->
+<section id="container">
+	<div class="zerogrid">
+		<div class="wrap-container clearfix">
+			<div id="main-content">
+				<div class="row wrap-content"><!--Start Box-->
+					<div class="header">
+						<h1>Mathematics of Sudoku</h1>
+						<span>This section refers to classic Sudoku, disregarding jigsaw, hyper, and other variants.</span>
+					</div>	
+					<div class="row">
+						<div style="width:1000px;">
+							<div style="float:none; clear: both;" align="center">
+								<img src="images/5.png" width="250" alt="" hspace="3">
+							</div>
+						</div>
+						<div class="info">
+							<p>The general problem of solving Sudoku puzzles on n^2×n^2 grids of n×n blocks is known to be NP-complete. Many computer algorithms, such as backtracking and dancing links can solve most 9×9 puzzles efficiently, but combinatorial explosion occurs as n increases, creating limits to the properties of Sudokus that can be constructed, analyzed, and solved as n increases. A Sudoku puzzle can be expressed as a graph coloring problem. The aim is to construct a 9-coloring of a particular graph, given a partial 9-coloring.</p>
+							<p>e fewest number of clues possible for a proper Sudoku is 17 (proven January 2012, and confirmed September 2013). Over 49,000 Sudokus with 17 clues have been found, many by Japanese enthusiasts. Sudokus with 18 clues and rotational symmetry have been found, and at least one Sudoku is known with 18 clues and exhibits two-way diagonal symmetry, and is automorphic. The maximum number of clues that can be provided while still not rendering a unique solution is four short of a full grid (77); if two instances of two numbers each are missing from cells that occupy the corners of an orthogonal rectangle, and exactly two of these cells are within one region, the numbers can be assigned two ways. Since this applies to Latin squares in general, most variants of Sudoku have the same maximum.</p>
+
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</section>
+
+</div>
+</body></html>
