@@ -1,0 +1,6 @@
+操作系统第二次作业
+使用环境为minix3
+目的：
+在minix3中实现Earliest-Deadline-First
+提供一个系统调度chrt，将调用该系统调用的进程设置为实时进程，其执行期限为从调用处deadline秒
+调度代码在proc.c 以及proc.h中

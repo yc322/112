@@ -1,0 +1,537 @@
+华东师范大学数据学院上机实践报告
+
+课程名称： 操作系统	年级：2016级	上机实践成绩：
+指导教师：翁楚良	姓名：洪语晨	
+上机实践名称： 操作系统shell编写	学号： 10161511322	上机实践日期：
+上机实践编号：	组号： 	上机实践时间： 
+
+
+目标:
+1. 巩固操作系统的进程调度机制和策略
+2. 熟悉MINIX系统调用和MINIX调度器的实现
+
+
+要求：
+
+1. 在MINIX3中实现Earliest-Deadline-First近似实时调度功能：
+
+(a) 提供设置进程执行期限的系统调度chrt (long deadline)，用于将调用该系统调用的进程设为实时进程，其执行的期限为：从调用处开始deadline秒。
+
+chrt的定义:
+int chrt(long deadline);
+/*deadline 是最后期限值(秒)，返回值1表示成功，返回值0表示该调用出错 */
+
+(b) 在内核进程表中需要增加一个条目，用于表示进程的实时属性；修改相关代码，新增一个系统调用chrt，用于设置其进程表中的实时属性。
+
+(c) 修改proc.c和proc.h中相关的调度代码，实现最早deadline的用户进程相对于其它用户进程具有更高的优先级，从而被优先调度运行。
+
+(d) 在用户程序中，可以在不同位置调用多次chrt系统调用，在未到deadline之前，调用chrt将会改变该程序的deadline。
+
+(e) 未调用chrt的程序将以普通的用户进程(非实时进程)在系统中运行。
+
+
+
+具体实现
+
+1.应用层
+函数定义 /usr/src/include/unistd.h
+添加
+int chrt(long );
+
+函数实现 /usr/src/minix/lib/libc/sys/chrt.c  （使用_syscall (编号)
+#include <sys/cdefs.h>
+#include "namespace.h"
+#include <lib.h>
+#include <unistd.h>
+
+int chrt(deadline)
+long deadline;
+{
+	message m;
+	m.m2_l1=deadline;
+	alarm((unsigned int)deadline);
+	return (_syscall(PM_PROC_NR,PM_CHRT,&m));
+}
+
+/usr/src/minix/lib/libc/sys/Makefile.inc 添加chrt.c
+SRCS+= 	
+	fpathconf.c fork.c chrt.c \
+
+2.服务层
+调用定义 /usr/src/minix/servers/pm/proto.h
+/*chrt.c*/
+int do_chrt(void);
+
+
+调用实现 /usr/src/minix/servers/pm/do_chrt.c  （调用sys_xxx()）
+#include "pm.h"
+#include <minix/callnr.h>
+#include <signal.h>
+#include <sys/svrctl.h>
+#include <sys/reboot.h>
+#include <sys/resource.h>
+#include <sys/utsname.h>
+#include <minix/com.h>
+#include <minix/config.h>
+#include <minix/sysinfo.h>
+#include <minix/type.h>
+#include <minix/ds.h>
+#include <machine/archtypes.h>
+#include <lib.h>
+#include <assert.h>
+#include "mproc.h"
+
+/*===========================================================*
+*         _chrt                 *
+*===========================================================*/
+int do_chrt(void)
+{
+  sys_chrt(who_p,m_in.m2_l1);
+  return OK;
+  
+}
+
+编号定义 /usr/src/minix/include/minix/callnr.h
+#define PM_CHRT				(PM_BASE + 48)
+#define NR_PM_CALLS		49	/* highest number from base plus one */
+
+编号=>调用  /usr/src/minix/servers/pm/table.c 
+CALL(PM_CHRT) = do_chrt					/*do_chrt(2)*/
+
+
+sys_chrt()定义 /usr/src/minix/include/minix/syslib.h
+int sys_chrt(endpoint_t proc_ep,long deadline);
+
+sys_chrt()实现 /usr/src/minix/lib/libsys/sys_chrt.c  (使用_kernel_call（编号）向下层传递)
+将deadline信息存储在message.m2_l1中
+
+#include "syslib.h"
+
+int sys_chrt(proc_ep,deadline)
+endpoint_t proc_ep; /*process set the deadline*/ 
+long deadline; /*the deadline*/
+{
+	message m;
+	m.m2_i1=proc_ep;
+	m.m2_l1=deadline;
+	return (_kernel_call(SYS_CHRT ,&m));
+}
+
+3.内核层
+do_chrt()定义   /usr/src/minix/kernel/system.h
+int do_chrt(struct proc * caller, message *m_ptr);
+
+do_chrt()实现  /usr/src/minix/kernel/system/do_chrt.c  (修改调用者进程信息)
+
+/* The kernel call implemented in this file:
+ *   m_type:	SYS_CHRT
+ *
+ * The parameters for this kernel call are:
+ *   m2_i1: RA_PROC_NR indecates a process
+ * 	 m2_|1: RA_DEADLINE deadline
+ */
+
+#include "kernel/system.h"
+#include <minix/endpoint.h>
+#include <stdio.h>
+#include <signal.h>
+#include "../system.h"
+#include <minix/timers.h>
+
+/*==========================================================*
+*			do_chrt				*
+*==========================================================*/
+
+
+int do_chrt(struct proc * caller, message *m_ptr)
+{
+		struct proc *rp;
+		minix_timer_t *tp;
+		/* the proc structure of process */
+		rp=proc_addr(m_ptr->m2_i1);
+		/*dequeue to change the dispatch*/
+		RTS_SET(rp,RTS_NO_QUANTUM);
+
+		/*call chrt again ,need to clear the old deadline */
+		if(rp->p_deadline.tmr_exp_time!=0){
+			do_setalarm(rp,m_ptr);
+			rp->p_deadline.tmr_exp_time=0;
+
+		}
+		/*set the information to a timer_t data structure*/
+		if(m_ptr-> m2_l1!=0){
+			tp=&rp->p_deadline;
+			tp->tmr_exp_time=m_ptr->m2_l1 *60+get_monotonic();
+			do_setalarm(rp,m_ptr);
+			printf("Process %d set timer, deadline =%lu\n",tp->tmr_arg.ta_int,tp->tmr_exp_time);
+		}
+		/*enqueue and change the dispatch again*/
+		RTS_UNSET(rp,RTS_NO_QUANTUM);
+		return (OK);
+}
+
+修改Makefile
+/usr/src/minix/kernel/system/Makefile.inc
+do_statectl.c \
+	do_chrt.c 
+
+.if ${MACHINE_ARCH} == "i386"
+SRCS+=  \
+	do_devio.c \
+	do_vdevio.c
+.endif
+
+
+编号定义      /usr/src/minix/include/minix/com.h
+#  define SYS_CHRT (KERNEL_CALL +58)	/*sys_chrt()*/
+
+编号=>do_chrt()  /usr/src/minix/kernel/system.c
+map(SYS_CHRT,do_chrt);  /*a process set the deadline*/
+
+名称=>编号   /usr/src/minix/commands/service/parse.c
+{"CHRT",		SYS_CHRT},
+{ NULL,		0 }
+
+
+进程调度
+/usr/src/minix/kernel/Proc.h
+在struct proc中添加   minix_timer_t p_deadline;
+记录进程的deadline
+
+
+/usr/src/minix/kernel/Proc.c
+更改入队函数,为调用chrt的函数设置优先级
+void enqueue(
+  register struct proc *rp	/* this process is now runnable */
+)
+{
+	.....	
+	if(rp->p_deadline.tmr_exp_time>0){
+  	rp->p_priority=7;
+  }
+}
+
+
+static void enqueue_head(struct proc *rp)
+{
+	......
+	if(rp->p_deadline.tmr_exp_time >0){
+  		rp->p_priority=7;
+  	}
+  	....
+}
+
+对pick_proc函数进行调整 实现EDF
+/*=======================================================================*
+ *				pick_proc				     * 
+ *===========================================================================*/
+static struct proc * pick_proc(void)
+{
+/* Decide who to run now.  A new process is selected an returned.
+ * When a billable process is selected, record it in 'bill_ptr', so that the 
+ * clock task can tell who to bill for system time.
+ *
+ * This function always uses the run queues of the local cpu!
+ */
+  register struct proc *rp;			/* process to run */
+  struct proc **rdy_head;
+  int q;				/* iterate over queues */
+  struct proc * tmp;
+  /* Check each of the scheduling queues for ready processes. The number of
+   * queues is defined in proc.h, and priorities are set in the task table.
+   * If there are no processes ready to run, return NULL.
+   */
+  rdy_head = get_cpulocal_var(run_q_head);
+  for (q=0; q < NR_SCHED_QUEUES; q++) {	
+	if(!(rp = rdy_head[q])) {
+		TRACE(VF_PICKPROC, printf("cpu %d queue %d empty\n", cpuid, q););
+		continue;
+	}
+	if(q==7){
+  		rp=rdy_head[q];
+  		tmp=rp->p_nextready;
+  		while(tmp){
+  			if(tmp->p_deadline.tmr_exp_time > 0 && (rp->p_deadline.tmr_exp_time == 0
+					|| (rp->p_deadline.tmr_exp_time > 0
+					&& tmp->p_deadline.tmr_exp_time < rp->p_deadline.tmr_exp_time)))
+  				rp=tmp;
+  			tmp=tmp->p_nextready;
+  		}
+	}
+	assert(proc_is_runnable(rp));
+	if (priv(rp)->s_flags & BILLABLE)	 	
+		get_cpulocal_var(bill_ptr) = rp; /* bill for system time */
+	return rp;
+  }
+  return NULL;
+}
+
+进程退出后清理闹钟和deadline
+/usr/src/minix/kernel/system/do_exit.c
+int do_exit(struct proc * caller, message * m_ptr)
+{
+/* Handle sys_exit. A system process has requested to exit. Generate a
+ * self-termination signal.
+ */
+  int sig_nr = SIGABRT;
+
+  cause_sig(caller->p_nr, sig_nr);      /* send a signal to the caller */
+  reset_kernel_timer(&caller->p_deadline);
+  caller->p_deadline.tmr_exp_time=0;
+  return(EDONTREPLY);			/* don't reply */
+}
+
+
+其他：
+/*===========================================================================*
+ *				do_setalarm				     *
+ *===========================================================================*/
+int do_setalarm(struct proc * caller, message * m_ptr)
+{
+/* A process requests a synchronous alarm, or wants to cancel its alarm. */
+  long exp_time;		/* expiration time for this alarm */
+  int use_abs_time;		/* use absolute or relative time */
+  minix_timer_t *tp;		/* the process' timer structure */
+  clock_t uptime;		/* placeholder for current uptime */
+
+  /* Extract shared parameters from the request message. */
+  exp_time = m_ptr->m_lsys_krn_sys_setalarm.exp_time;		/* alarm's expiration time */
+  use_abs_time = m_ptr->m_lsys_krn_sys_setalarm.abs_time;	/* flag for absolute time */
+  if (! (priv(caller)->s_flags & SYS_PROC)) return(EPERM);
+
+  /* Get the timer structure and set the parameters for this alarm. */
+  tp = &(priv(caller)->s_alarm_timer);
+  tmr_arg(tp)->ta_int = caller->p_endpoint;
+  tp->tmr_func = cause_alarm; 
+
+  /* Return the ticks left on the previous alarm. */
+  uptime = get_monotonic(); 
+  if ((tp->tmr_exp_time != TMR_NEVER) && (uptime < tp->tmr_exp_time) ) {
+      m_ptr->m_lsys_krn_sys_setalarm.time_left = (tp->tmr_exp_time - uptime);
+  } else {
+      m_ptr->m_lsys_krn_sys_setalarm.time_left = 0;
+  }
+
+  /* Finally, (re)set the timer depending on the expiration time. */
+  if (exp_time == 0) {
+      reset_kernel_timer(tp);
+  } else {
+      tp->tmr_exp_time = (use_abs_time) ? exp_time : exp_time + get_monotonic();
+      set_kernel_timer(tp, tp->tmr_exp_time, tp->tmr_func);
+  }
+  return(OK);
+}
+
+
+测试：
+test1：
+测试代码
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>  
+#include <signal.h>  
+#include <sys/wait.h>  
+#include <sys/types.h> 
+#include <lib.h> 
+
+
+void child(char name);
+
+int main(void)
+{
+	float a;
+	int seconds,i;
+	char name;
+	name='A';
+	for (i=0;i<4;i++){
+		if(fork()==0){
+			child(name);
+		}
+		name++;
+	}
+	printf("father end\n");
+	exit(0);
+}
+
+void child(char name)
+{
+	float f;
+	int count;
+	switch(name)
+	{
+	case 'A':if(chrt(2)!=0){perror("chrt");exit(1);} break;
+	case 'B':if(chrt(3)!=0){perror("chrt");exit(1);} break;
+	case 'C':if(chrt(0)!=0){perror("chrt");exit(1);} break;
+	}
+	for(count=0;count<10;count++){
+		printf("%c :%d\n",name ,count);
+		for(f=0;f<2000;f+=0.001);
+	}
+	printf("%c end\n",name);
+	exit(0);
+}
+
+运行结果：
+A :0
+A :1
+A :2
+A :3
+A :4
+A :5
+A :6
+A :7
+A :8
+A :9
+A end
+B :0
+B :1
+B :2
+B :3
+B :4
+B :5
+B :6
+B :7
+B :8
+B :9
+B end
+D :0
+father end
+D :1
+D :2
+D :3
+D :4
+D :5
+D :6
+D :7
+D :8
+D :9
+D end
+C :0
+C :1
+C :2
+C :3
+C :4
+C :5
+C :6
+C :7
+C :8
+C :9
+C end
+
+解释：
+进程C,D为普通进程，进程A的deadline更早，因此先运行A，在A到达deadline之后，杀死进程A，并且调度算法选择优先运行进程B，而进程C,D轮流运行
+
+测试代码2：
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>  
+#include <signal.h>  
+#include <sys/wait.h>  
+#include <sys/types.h> 
+#include <lib.h> 
+#include <sys/time.h>
+
+void child(char name);
+int main()
+{
+	int seconds,i;
+	char name;
+	name='A';
+	for (i=0;i<3;i++){
+		if(fork()==0){
+			child(name);
+		}
+		name++;
+	}
+}
+
+
+void child(char name)
+{
+	struct timeval tv_begin,tv_end;
+	gettimeofday(&tv_begin,NULL);
+	long int time;
+	int loop=0;
+	while(1){
+		sleep(1);
+		printf("%c heart beat %d\n",name,loop++);
+		gettimeofday(&tv_end,NULL);
+		time=tv_end.tv_sec-tv_begin.tv_sec;
+		if(time==5 && name=='A') 
+		{
+			chrt(5);
+			printf("set proc A deadline 5\n");
+		}
+		if(time==10 && name=='B') 
+		{
+			chrt(10);
+			printf("set proc B deadline 10\n");
+		}
+	}
+}
+
+运行结果：
+A heart beat 0
+C heart beat 0
+B heart beat 0
+A heart beat 1
+C heart beat 1
+B heart beat 1
+A heart beat 2
+C heart beat 2
+B heart beat 2
+A heart beat 3
+C heart beat 3
+B heart beat 3
+A heart beat 4
+C heart beat 4
+B heart beat 4
+set proc A deadline 5
+A heart beat 5
+C heart beat 5
+B heart beat 5
+A heart beat 6
+C heart beat 6
+B heart beat 6
+A heart beat 7
+C heart beat 7
+B heart beat 7
+A heart beat 8
+C heart beat 8
+B heart beat 8
+C heart beat 9
+B heart beat 9
+set proc B deadline 10
+B heart beat 10
+C heart beat 10
+B heart beat 11
+C heart beat 11
+B heart beat 12
+C heart beat 12
+B heart beat 13
+C heart beat 13
+B heart beat 14
+C heart beat 14
+B heart beat 15
+C heart beat 15
+B heart beat 16
+C heart beat 16
+B heart beat 17
+C heart beat 17
+B heart beat 18
+C heart beat 18
+C heart beat 19
+C heart beat 20
+C heart beat 21
+C heart beat 22
+C heart beat 23
+C heart beat 24
+C heart beat 25
+C heart beat 26
+
+解释：
+每个进程都会调用sleep函数，被挂起，每次调度选择优先级更高的进程，一开始三个进程都未调用chrt，因此顺序未知，5秒后进程A调用chrt，优先级高于其他进程，优先调度，10秒后B调用chrt，因此优先调用B
+
+

@@ -1,0 +1,51 @@
+# depslib dependency file v1.0
+1512366446 source:f:\数据结构\avl tree\avl tree\main.cpp
+	<iostream>
+	"AVL.h"
+
+1512366125 source:f:\数据结构\avl tree\avl tree\avltree.cpp
+	"AVL.h"
+	<iostream>
+
+1512366139 f:\数据结构\avl tree\avl tree\avl.h
+	"binary tree.h"
+
+1512365337 source:f:\数据结构\avl tree\avl tree\binary tree.cpp
+	"binary tree.h"
+	<iostream>
+
+1512365772 f:\数据结构\avl tree\avl tree\binary tree.h
+
+1512114192 source:f:\数据结构\avl tree\avl tree\bst.cpp
+	"BST.h"
+	<iostream>
+
+1512106817 f:\数据结构\avl tree\avl tree\bst.h
+	"binary tree.h"
+
+1512366126 source:c:\users\user\desktop\avl tree\avl tree\avltree.cpp
+	"AVL.h"
+	<iostream>
+
+1512393980 c:\users\user\desktop\avl tree\avl tree\avl.h
+	"binary tree.h"
+
+1512372653 c:\users\user\desktop\avl tree\avl tree\binary tree.h
+	<stack>
+
+1512365338 source:c:\users\user\desktop\avl tree\avl tree\binary tree.cpp
+	"binary tree.h"
+	<iostream>
+
+1512114194 source:c:\users\user\desktop\avl tree\avl tree\bst.cpp
+	"BST.h"
+	<iostream>
+
+1512106818 c:\users\user\desktop\avl tree\avl tree\bst.h
+	"binary tree.h"
+
+1512391061 source:c:\users\user\desktop\avl tree\avl tree\main.cpp
+	<iostream>
+	"binary tree.h"
+	"AVL.h"
+
